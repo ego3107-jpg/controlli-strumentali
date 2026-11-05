@@ -1,8 +1,16 @@
-const CACHE = 'dove-sono-v6';
+const CACHE = 'dove-sono-v7';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.all(FILES.map(f =>
+        fetch(new Request(f, {cache: 'reload'}))
+          .then(r => (r.ok ? c.put(f, r) : null))
+          .catch(() => null)
+      )))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -13,10 +21,16 @@ self.addEventListener('activate', e => {
   );
 });
 
+// Prima la rete (così gli aggiornamenti compaiono subito), la copia salvata solo se sei offline.
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request))
+    fetch(e.request, {cache: 'no-cache'})
+      .then(r => {
+        if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+        return r;
+      })
+      .catch(() => caches.match(e.request).then(hit => hit || caches.match('./index.html')))
   );
 });
