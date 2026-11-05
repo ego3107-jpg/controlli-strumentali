@@ -21,26 +21,37 @@ h1{font-size:20px;margin:6px 0 14px}
 .tabs button.on{color:var(--ac)}
 #rec{display:block;width:210px;height:210px;margin:18px auto 10px;border-radius:50%;border:0;background:var(--ac);color:var(--acx);font-family:inherit;font-weight:700;font-size:20px;line-height:1.2;cursor:pointer;box-shadow:0 0 0 10px color-mix(in srgb,var(--ac) 18%,transparent)}
 #rec:active{transform:scale(.97)}
-#rec:disabled{opacity:.65}
+#rec:disabled{opacity:.45}
 #msg{min-height:24px;text-align:center;color:var(--mu);font-size:15px;margin-bottom:10px}
 #msg.err{color:var(--er)}
 .item{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin:8px 0}
+.item.draft{border:2px solid var(--ac)}
+.dh{font-weight:700;font-size:18px;margin-bottom:2px}
 .when{font-size:13px;color:var(--mu)}
 .addr{font-weight:600;word-break:break-word;margin:2px 0}
 label.f{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
 input.big{font-size:17px;font-weight:600}
+.row2{display:flex;gap:10px}
+.row2 .grow{flex:1;min-width:0}
+.row2 .cv{width:92px;flex:none}
 .note{font-size:13px;color:var(--er);margin-top:6px}
-.hd{display:flex;align-items:center;gap:10px}
-.dot{flex:none;width:16px;height:16px;border-radius:50%}
-.dot.g{background:#2e9e4f}.dot.y{background:#e0a800}.dot.r{background:#d33a2c}
-.leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--mu);margin:10px 2px 0}
-.leg span{display:inline-flex;align-items:center;gap:6px}
-.sm{display:flex;gap:16px;margin-top:8px;font-size:14px}
+.btns{display:flex;gap:10px;margin-top:16px}
+.btn{flex:1;padding:14px;border-radius:12px;border:0;background:var(--ac);color:var(--acx);font:inherit;font-weight:700;cursor:pointer}
+.btn.sec{background:none;color:var(--tx);border:1px solid var(--bd)}
+.sm{display:flex;gap:16px;margin-top:12px;font-size:14px}
 .sm button,.link{background:none;border:0;padding:0;color:var(--ac);font:inherit;text-decoration:underline;cursor:pointer}
 .sm .del{color:var(--er);margin-left:auto}
 input[type=search],input[type=text],input[type=datetime-local]{width:100%;padding:12px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);font:inherit}
 .sum{color:var(--mu);font-size:14px;margin:10px 2px}
 .cnt{font-size:22px;font-weight:700;color:var(--ac)}
+.hd{display:flex;align-items:center;gap:10px}
+.dot{flex:none;width:16px;height:16px;border-radius:50%}
+.dot.g{background:#2e9e4f}.dot.y{background:#e0a800}.dot.r{background:#d33a2c}
+.leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--mu);margin:10px 2px 0}
+.leg span{display:inline-flex;align-items:center;gap:6px}
+.kv{display:flex;gap:8px;margin-top:4px}
+.kv b{flex:none;width:68px;font-weight:400;color:var(--mu);font-size:14px}
+.kv span{font-weight:600;word-break:break-word}
 .dates{margin:8px 0 0;padding-left:18px;font-size:14px;color:var(--mu)}
 .empty{text-align:center;color:var(--mu);margin-top:30px}
 .tools{display:flex;gap:16px;justify-content:center;margin-top:26px;font-size:14px}
@@ -53,7 +64,7 @@ input[type=search],input[type=text],input[type=datetime-local]{width:100%;paddin
     <h1>Dove sono stato</h1>
     <button id="rec">Registra<br>dove sono</button>
     <div id="msg"></div>
-    <div id="recent"></div>
+    <div id="draft"></div>
   </section>
   <section id="v-all" class="view">
     <h1>Storico</h1>
@@ -61,7 +72,7 @@ input[type=search],input[type=text],input[type=datetime-local]{width:100%;paddin
   </section>
   <section id="v-places" class="view">
     <h1>Luoghi</h1>
-    <input id="q" type="search" placeholder="Cerca una via, una città, un posto" autocomplete="off">
+    <input id="q" type="search" placeholder="Cerca città, via, civico, attività" autocomplete="off">
     <div class="leg"><span><i class="dot g"></i>più di 10 mesi fa</span><span><i class="dot y"></i>tra 4 e 10 mesi fa</span><span><i class="dot r"></i>meno di 4 mesi fa</span></div>
     <div id="sum" class="sum"></div>
     <div id="places"></div>
@@ -78,126 +89,221 @@ input[type=search],input[type=text],input[type=datetime-local]{width:100%;paddin
   <button id="t-places">Luoghi</button>
 </nav>
 <script>
-const KEY = `dove_sono_v1`;
-let items = [];
+const KEY = `dove_sono_v1`, DKEY = `dove_sono_bozza_v1`;
+let items = [], draft = null, draftRefs = null, filling = false;
 const $ = id => document.getElementById(id);
 
-function load(){ try { items = JSON.parse(localStorage.getItem(KEY) || `[]`) || []; } catch(e){ items = []; } items.forEach(i => { i.name = i.name || ``; i.vat = i.vat || ``; }); }
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e){ say(`Memoria piena: esporta una copia e libera spazio.`, true); } }
-function say(t, err){ const m = $(`msg`); m.textContent = t; m.className = err ? `err` : ``; }
 const norm = s => (s || ``).normalize(`NFD`).replace(/[\u0300-\u036f]/g, ``).toLowerCase().replace(/\s+/g, ` `).trim();
 const fmtDate = ts => new Date(ts).toLocaleDateString(`it-IT`, {weekday:`short`, day:`numeric`, month:`long`, year:`numeric`});
 const fmtTime = ts => new Date(ts).toLocaleTimeString(`it-IT`, {hour:`2-digit`, minute:`2-digit`});
+const toLocalInput = ts => new Date(ts - new Date(ts).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 const monthsAgoLimit = m => { const d = new Date(); d.setMonth(d.getMonth() - m); return d.getTime(); };
 function recency(ts){
   if(ts < monthsAgoLimit(10)) return {c:`g`, t:`più di 10 mesi fa`};
   if(ts <= monthsAgoLimit(4)) return {c:`y`, t:`tra 4 e 10 mesi fa`};
   return {c:`r`, t:`meno di 4 mesi fa`};
 }
-const hasCivic = a => /\d/.test((a || ``).split(`,`)[0]);
-const toLocalInput = ts => { const d = new Date(ts - new Date(ts).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); };
+function say(t, err){ const m = $(`msg`); m.textContent = t; m.className = err ? `err` : ``; }
 
-async function reverse(it){
-  const u = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=it&lat=${it.lat}&lon=${it.lng}`;
-  const r = await fetch(u);
-  if(!r.ok) throw new Error(`geo`);
-  const j = await r.json(), a = j.address || {};
-  const road = a.road || a.pedestrian || a.footway || a.path || a.square || a.neighbourhood || ``;
-  const street = [road, a.house_number].filter(Boolean).join(` `);
-  const town = a.city || a.town || a.village || a.municipality || a.hamlet || ``;
-  const cap = [a.postcode, town].filter(Boolean).join(` `);
-  return [street, cap].filter(Boolean).join(`, `) || (j.display_name || ``);
+/* Vecchie registrazioni: spezza "Via Roma 12, 60044 Fabriano" in indirizzo, civico, città (senza CAP) */
+function migrate(it){
+  it.city = it.city || ``; it.street = it.street || ``; it.civic = it.civic || ``; it.name = it.name || ``; it.vat = it.vat || ``;
+  if(it.address && !it.street && !it.city && !it.civic){
+    const parts = String(it.address).split(`,`).map(s => s.trim());
+    const first = parts[0] || ``;
+    const m = first.match(/^(.*?)[\s,]+(\d+[A-Za-z\/\-]*)$/);
+    if(m){ it.street = m[1].trim(); it.civic = m[2]; } else it.street = first;
+    if(parts[1]) it.city = parts[1].replace(/^\d{5}\s*/, ``);
+  }
+  delete it.address; return it;
+}
+function load(){
+  try { items = (JSON.parse(localStorage.getItem(KEY) || `[]`) || []).map(migrate); } catch(e){ items = []; }
+  try { const d = JSON.parse(localStorage.getItem(DKEY) || `null`); draft = d ? migrate(d) : null; } catch(e){ draft = null; }
+}
+function saveItems(){ try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e){ say(`Memoria piena: esporta una copia e libera spazio.`, true); } }
+function saveDraft(){ try { if(draft) localStorage.setItem(DKEY, JSON.stringify(draft)); else localStorage.removeItem(DKEY); } catch(e){} }
+
+async function reverse(r){
+  const u = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=it&lat=${r.lat}&lon=${r.lng}`;
+  const res = await fetch(u);
+  if(!res.ok) throw new Error(`geo`);
+  const a = (await res.json()).address || {};
+  const g = {
+    street: a.road || a.pedestrian || a.footway || a.path || a.square || a.neighbourhood || ``,
+    civic: a.house_number || ``,
+    city: a.city || a.town || a.village || a.municipality || a.hamlet || ``
+  };
+  if(!g.street && !g.city) throw new Error(`vuoto`);
+  return g;
+}
+
+function applyGeo(id, g){
+  if(draft && draft.id === id){
+    [`city`, `street`, `civic`].forEach(k => {
+      if(!g[k]) return;
+      if(draftRefs){ if(!draftRefs[k].value.trim()){ draftRefs[k].value = g[k]; draft[k] = g[k]; } }
+      else if(!draft[k]) draft[k] = g[k];
+    });
+    if(draftRefs) draftRefs.upd();
+    saveDraft(); return;
+  }
+  const t = items.find(i => i.id === id); if(!t) return;
+  [`city`, `street`, `civic`].forEach(k => { if(!t[k] && g[k]) t[k] = g[k]; });
+  saveItems();
 }
 
 async function fillMissing(){
-  for(const it of items){
-    if(it.address) continue;
-    try { it.address = await reverse(it); save(); renderAll(); } catch(e){ break; }
-    await new Promise(r => setTimeout(r, 1100));
+  if(filling) return; filling = true;
+  const todo = [];
+  if(draft && !draft.street && !draft.city) todo.push(draft);
+  items.forEach(i => { if(!i.street && !i.city) todo.push(i); });
+  for(const r of todo){
+    try { applyGeo(r.id, await reverse(r)); } catch(e){ break; }
+    await new Promise(x => setTimeout(x, 1100));
   }
+  filling = false;
+  const ae = document.activeElement;
+  if(todo.length && !(ae && ae.tagName === `INPUT`)) renderAll();
+}
+
+/* ---------- campi di una registrazione ---------- */
+function mkField(labelText, value, o){
+  const wrap = document.createElement(`div`);
+  const l = document.createElement(`label`); l.className = `f`; l.textContent = labelText;
+  const i = document.createElement(`input`); i.type = o.type || `text`; i.value = value || ``; i.autocomplete = `off`;
+  if(o.cls) i.className = o.cls; if(o.mode) i.inputMode = o.mode; if(o.ph) i.placeholder = o.ph;
+  wrap.append(l, i); return {wrap, i};
+}
+function cardFields(rec, onChange, refs){
+  const root = document.createElement(`div`);
+  const city = mkField(`Città`, rec.city, {cls:`big`, ph:`Città`});
+  const street = mkField(`Indirizzo`, rec.street, {cls:`big`, ph:`Via, piazza…`});
+  const civic = mkField(`Civico`, rec.civic, {cls:`big`, ph:`N.`});
+  const name = mkField(`Nome attività`, rec.name, {});
+  const vat = mkField(`Partita IVA`, rec.vat, {mode:`numeric`});
+  const when = mkField(`Data e ora`, toLocalInput(rec.ts), {type:`datetime-local`});
+  const row = document.createElement(`div`); row.className = `row2`;
+  street.wrap.classList.add(`grow`); civic.wrap.classList.add(`cv`); row.append(street.wrap, civic.wrap);
+  const note = document.createElement(`div`); note.className = `note`;
+  const upd = () => {
+    note.textContent = (!city.i.value.trim() && !street.i.value.trim()) ? `Indirizzo non ancora trovato.` : (!civic.i.value.trim() ? `Manca il numero civico: aggiungilo nel campo.` : ``);
+    note.hidden = !note.textContent;
+  };
+  [[city, `city`], [street, `street`], [civic, `civic`], [name, `name`], [vat, `vat`]].forEach(([f, k]) => f.i.addEventListener(`change`, () => { rec[k] = f.i.value.trim(); onChange(); }));
+  when.i.addEventListener(`change`, () => { const t = new Date(when.i.value).getTime(); if(!isNaN(t)){ rec.ts = t; onChange(); } });
+  [city, street, civic].forEach(f => f.i.addEventListener(`input`, upd)); upd();
+  root.append(city.wrap, row, note, name.wrap, vat.wrap, when.wrap);
+  if(refs){
+    refs.city = city.i; refs.street = street.i; refs.civic = civic.i; refs.upd = upd;
+    refs.commit = () => {
+      rec.city = city.i.value.trim(); rec.street = street.i.value.trim(); rec.civic = civic.i.value.trim();
+      rec.name = name.i.value.trim(); rec.vat = vat.i.value.trim();
+      const t = new Date(when.i.value).getTime(); if(!isNaN(t)) rec.ts = t;
+    };
+  }
+  return root;
+}
+
+/* ---------- schermata Registra: posizione in attesa di conferma ---------- */
+function renderDraft(){
+  const el = $(`draft`); el.textContent = ``; draftRefs = null;
+  $(`rec`).disabled = !!draft;
+  if(!draft) return;
+  const box = document.createElement(`div`); box.className = `item draft`;
+  const h = document.createElement(`div`); h.className = `dh`; h.textContent = `Salvare questa posizione?`;
+  draftRefs = {};
+  box.append(h, cardFields(draft, saveDraft, draftRefs));
+  const b = document.createElement(`div`); b.className = `btns`;
+  const ok = document.createElement(`button`); ok.className = `btn`; ok.textContent = `Salva`;
+  const no = document.createElement(`button`); no.className = `btn sec`; no.textContent = `Annulla`;
+  ok.addEventListener(`click`, () => {
+    draftRefs.commit(); items.push(draft); saveItems();
+    draft = null; saveDraft(); renderDraft(); renderAll();
+    if(navigator.vibrate) navigator.vibrate(60);
+    say(`Salvata nello Storico.`); setTimeout(() => { if($(`msg`).textContent === `Salvata nello Storico.`) say(``); }, 4000);
+  });
+  no.addEventListener(`click`, () => {
+    if(!confirm(`Scartare questa posizione?`)) return;
+    draft = null; saveDraft(); renderDraft(); say(``);
+  });
+  b.append(ok, no); box.appendChild(b); el.appendChild(box);
 }
 
 $(`rec`).addEventListener(`click`, () => {
+  if(draft){ say(`Salva o annulla la posizione già rilevata.`, true); return; }
   if(!navigator.geolocation){ say(`Questo telefono non fornisce la posizione.`, true); return; }
   const b = $(`rec`); b.disabled = true; say(`Rilevo la posizione…`);
   navigator.geolocation.getCurrentPosition(async p => {
-    const it = {id:String(Date.now()), ts:Date.now(), lat:p.coords.latitude, lng:p.coords.longitude, address:``, name:``, vat:``};
-    items.push(it); save(); renderAll();
+    const ts = Date.now();
+    draft = {id:String(ts), ts, lat:p.coords.latitude, lng:p.coords.longitude, city:``, street:``, civic:``, name:``, vat:``};
+    const id = draft.id, pos = {lat:draft.lat, lng:draft.lng};
+    saveDraft(); renderDraft();
     if(navigator.vibrate) navigator.vibrate(60);
     say(`Cerco l’indirizzo…`);
-    try { it.address = await reverse(it); save(); renderAll(); say(hasCivic(it.address) ? `Registrato.` : `Registrato, ma manca il numero civico: aggiungilo nel campo.`, !hasCivic(it.address)); }
-    catch(e){ say(`Registrato senza indirizzo: lo cercherò appena c’è connessione, oppure scrivilo a mano.`, true); }
-    b.disabled = false;
+    try {
+      const g = await reverse(pos); applyGeo(id, g);
+      if(draft && draft.id === id) say(g.civic ? `Controlla i dati e premi Salva.` : `Manca il numero civico: aggiungilo e premi Salva.`, !g.civic);
+    } catch(e){ if(draft && draft.id === id) say(`Indirizzo non trovato: scrivilo a mano e premi Salva.`, true); }
   }, e => {
     say(e.code === 1 ? `Permesso di posizione negato. Attivalo per questa app nelle impostazioni del telefono.` : `Posizione non disponibile. Riprova all’aperto.`, true);
     b.disabled = false;
   }, {enableHighAccuracy:true, timeout:20000, maximumAge:0});
 });
 
-function field(labelText, value, placeholder, cls, onChange, type, mode){
-  const wrap = document.createDocumentFragment();
-  const l = document.createElement(`label`); l.className = `f`; l.textContent = labelText;
-  const i = document.createElement(`input`); i.type = type || `text`; i.value = value || ``; i.placeholder = placeholder || ``;
-  if(cls) i.className = cls; if(mode) i.inputMode = mode;
-  i.autocomplete = `off`;
-  i.addEventListener(`change`, () => onChange(i.value));
-  wrap.append(l, i); return wrap;
-}
-
+/* ---------- Storico ---------- */
 function itemCard(it){
   const c = document.createElement(`div`); c.className = `item`;
-  c.appendChild(field(`Indirizzo con numero civico`, it.address, `Via e numero, CAP, città`, `big`, v => { it.address = v.trim(); save(); renderAll(); }));
-  if(it.address && !hasCivic(it.address)){ const n = document.createElement(`div`); n.className = `note`; n.textContent = `Manca il numero civico: aggiungilo nel campo.`; c.appendChild(n); }
-  if(!it.address){ const n = document.createElement(`div`); n.className = `note`; n.textContent = `Indirizzo non ancora trovato: scrivilo a mano o attendi la connessione.`; c.appendChild(n); }
-  c.appendChild(field(`Nome attività`, it.name, ``, ``, v => { it.name = v.trim(); save(); renderAll(); }));
-  c.appendChild(field(`Partita IVA`, it.vat, ``, ``, v => { it.vat = v.trim(); save(); renderAll(); }, `text`, `numeric`));
-  c.appendChild(field(`Data e ora`, toLocalInput(it.ts), ``, ``, v => { const t = new Date(v).getTime(); if(!isNaN(t)){ it.ts = t; save(); renderAll(); } }, `datetime-local`));
+  c.appendChild(cardFields(it, saveItems));
   const s = document.createElement(`div`); s.className = `sm`;
   const d = document.createElement(`button`); d.className = `del`; d.textContent = `Elimina`;
-  d.addEventListener(`click`, () => { if(confirm(`Eliminare questa registrazione?`)){ items = items.filter(x => x.id !== it.id); save(); renderAll(); } });
+  d.addEventListener(`click`, () => { if(confirm(`Eliminare questa registrazione?`)){ items = items.filter(x => x.id !== it.id); saveItems(); renderAll(); } });
   s.appendChild(d); c.appendChild(s); return c;
 }
-
-function renderList(el, list, emptyText){
-  el.textContent = ``;
-  if(!list.length){ const e = document.createElement(`div`); e.className = `empty`; e.textContent = emptyText; el.appendChild(e); return; }
+function renderHistory(){
+  const el = $(`all`); el.textContent = ``;
+  const list = items.slice().sort((a, b) => b.ts - a.ts);
+  if(!list.length){ const e = document.createElement(`div`); e.className = `empty`; e.textContent = `Nessuna registrazione salvata.`; el.appendChild(e); return; }
   list.forEach(it => el.appendChild(itemCard(it)));
 }
-const sorted = () => items.slice().sort((a, b) => b.ts - a.ts);
 
+/* ---------- Luoghi ---------- */
 function groups(){
   const m = new Map();
   items.forEach(it => {
-    const k = it.address ? norm(it.address) : `__none__`;
-    if(!m.has(k)) m.set(k, {label: it.address || `Indirizzo non ancora trovato`, items: []});
+    const k = (it.city || it.street || it.civic) ? [norm(it.city), norm(it.street), norm(it.civic)].join(`|`) : `__none__`;
+    if(!m.has(k)) m.set(k, {city:it.city, street:it.street, civic:it.civic, items:[]});
     m.get(k).items.push(it);
   });
   return [...m.values()];
 }
-
+function kv(label, value){
+  const r = document.createElement(`div`); r.className = `kv`;
+  const b = document.createElement(`b`); b.textContent = label;
+  const s = document.createElement(`span`); s.textContent = value || `—`;
+  r.append(b, s); return r;
+}
 function renderPlaces(){
   const q = norm($(`q`).value).split(` `).filter(Boolean);
   let gs = groups();
-  if(q.length) gs = gs.filter(g => { const hay = norm(g.items.map(i => [i.address, i.name, i.vat].join(` `)).join(` `)); return q.every(t => hay.includes(t)); });
+  if(q.length) gs = gs.filter(g => { const hay = norm([g.city, g.street, g.civic].concat(g.items.map(i => i.name + ` ` + i.vat)).join(` `)); return q.every(t => hay.includes(t)); });
   gs.forEach(g => g.items.sort((a, b) => a.ts - b.ts));
   gs.sort((a, b) => b.items.length - a.items.length || b.items[b.items.length-1].ts - a.items[a.items.length-1].ts);
   const total = gs.reduce((s, g) => s + g.items.length, 0);
   $(`sum`).textContent = items.length ? `${total} registrazioni in ${gs.length} indirizzi` : ``;
   const l = $(`places`); l.textContent = ``;
-  if(!gs.length){ const e = document.createElement(`div`); e.className = `empty`; e.textContent = items.length ? `Nessun indirizzo trovato.` : `Non hai ancora registrato nessun luogo.`; l.appendChild(e); return; }
+  if(!gs.length){ const e = document.createElement(`div`); e.className = `empty`; e.textContent = items.length ? `Nessun indirizzo trovato.` : `Non hai ancora salvato nessun luogo.`; l.appendChild(e); return; }
   gs.forEach(g => {
     const box = document.createElement(`div`); box.className = `item`;
+    const last = g.items[g.items.length - 1], rc = recency(last.ts);
     const n = document.createElement(`div`); n.className = `cnt`; n.textContent = g.items.length === 1 ? `1 volta` : `${g.items.length} volte`;
-    const a = document.createElement(`div`); a.className = `addr`; a.textContent = g.label;
-    const last = g.items[g.items.length - 1];
-    const rc = recency(last.ts);
-    const hd = document.createElement(`div`); hd.className = `hd`;
     const dot = document.createElement(`i`); dot.className = `dot ` + rc.c; dot.title = `Ultima volta: ` + rc.t; dot.setAttribute(`role`, `img`); dot.setAttribute(`aria-label`, `Ultima volta: ` + rc.t);
-    hd.append(dot, n);
-    box.append(hd, a);
-    const names = [...new Set(g.items.map(i => [i.name, i.vat && `P.IVA ${i.vat}`].filter(Boolean).join(` · `)).filter(Boolean))];
-    names.forEach(t => { const w = document.createElement(`div`); w.className = `when`; w.textContent = t; box.appendChild(w); });
-    const w = document.createElement(`div`); w.className = `when`; w.textContent = `Ultima volta: ${fmtDate(last.ts)} (${rc.t})`; box.appendChild(w);
+    const hd = document.createElement(`div`); hd.className = `hd`; hd.append(dot, n); box.appendChild(hd);
+    box.append(kv(`Città`, g.city), kv(`Indirizzo`, g.street), kv(`Civico`, g.civic));
+    [...new Set(g.items.map(i => [i.name, i.vat && `P.IVA ${i.vat}`].filter(Boolean).join(` · `)).filter(Boolean))].forEach(t => {
+      const w = document.createElement(`div`); w.className = `when`; w.textContent = t; box.appendChild(w);
+    });
+    const w = document.createElement(`div`); w.className = `when`; w.style.marginTop = `6px`; w.textContent = `Ultima volta: ${fmtDate(last.ts)} (${rc.t})`; box.appendChild(w);
     const t = document.createElement(`button`); t.className = `link`; t.textContent = `Mostra le date`;
     const ul = document.createElement(`ul`); ul.className = `dates`; ul.hidden = true;
     g.items.slice().reverse().forEach(i => { const li = document.createElement(`li`); li.textContent = `${fmtDate(i.ts)}, ${fmtTime(i.ts)}`; ul.appendChild(li); });
@@ -206,18 +312,15 @@ function renderPlaces(){
   });
 }
 
-function renderAll(){
-  const ae = document.activeElement; if(ae && ae.tagName === `INPUT` && ae.id !== `q`) ae.blur();
-  renderList($(`recent`), sorted().slice(0, 3), `Premi il pulsante per registrare dove ti trovi.`);
-  renderList($(`all`), sorted(), `Nessuna registrazione.`);
-  renderPlaces();
-}
+function renderAll(){ renderHistory(); renderPlaces(); }
 $(`q`).addEventListener(`input`, renderPlaces);
 
 function tab(name){
-  ['rec', 'all', 'places'].forEach(n => { $(`v-` + n).classList.toggle(`on`, n === name); $(`t-` + n).classList.toggle(`on`, n === name); });
+  [`rec`, `all`, `places`].forEach(n => { $(`v-` + n).classList.toggle(`on`, n === name); $(`t-` + n).classList.toggle(`on`, n === name); });
+  if(name === `all`) renderHistory();
+  if(name === `places`) renderPlaces();
 }
-['rec', 'all', 'places'].forEach(n => $(`t-` + n).addEventListener(`click`, () => tab(n)));
+[`rec`, `all`, `places`].forEach(n => $(`t-` + n).addEventListener(`click`, () => tab(n)));
 
 $(`exp`).addEventListener(`click`, () => {
   const blob = new Blob([JSON.stringify(items, null, 2)], {type:`application/json`});
@@ -231,13 +334,14 @@ $(`imp`).addEventListener(`change`, async e => {
     const data = JSON.parse(await f.text());
     if(!Array.isArray(data)) throw new Error(`fmt`);
     const ids = new Set(items.map(i => i.id)); let n = 0;
-    data.forEach(d => { if(d && d.id && typeof d.lat === `number` && typeof d.lng === `number` && !ids.has(String(d.id))){ items.push({id:String(d.id), ts:+d.ts, lat:d.lat, lng:d.lng, address:String(d.address || ``), name:String(d.name || ``), vat:String(d.vat || ``)}); n++; } });
-    save(); renderAll(); alert(`Importate ${n} registrazioni.`);
+    data.forEach(d => { if(d && d.id && typeof d.lat === `number` && typeof d.lng === `number` && !ids.has(String(d.id))){ items.push(migrate({...d, id:String(d.id), ts:+d.ts})); n++; } });
+    saveItems(); renderAll(); alert(`Importate ${n} registrazioni.`);
   } catch(err){ alert(`File non valido.`); }
   e.target.value = ``;
 });
 
-load(); renderAll(); fillMissing();
+load(); saveItems(); renderDraft(); renderAll(); fillMissing();
+if(draft) say(`Hai una posizione da salvare o annullare.`);
 window.addEventListener(`online`, fillMissing);
 if(`serviceWorker` in navigator) navigator.serviceWorker.register(`sw.js`).catch(() => {});
 </script>
