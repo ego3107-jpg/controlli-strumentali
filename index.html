@@ -123,6 +123,7 @@ function say(t, err){ const m = $(`msg`); m.textContent = t; m.className = err ?
 /* Vecchie registrazioni: spezza "Via Roma 12, 60044 Fabriano" in indirizzo, civico, città (senza CAP) */
 function migrate(it){
   it.city = it.city || ``; it.street = it.street || ``; it.civic = it.civic || ``; it.name = it.name || ``; it.vat = it.vat || ``; it.status = it.status || ``;
+  if(it.status === `regolare`) it.status = `si`; else if(it.status === `irregolare`) it.status = `no`;
   if(it.address && !it.street && !it.city && !it.civic){
     const parts = String(it.address).split(`,`).map(s => s.trim());
     const first = parts[0] || ``;
@@ -213,13 +214,12 @@ function cardFields(rec, onChange, refs){
     const c = document.createElement(`input`); c.type = `checkbox`; c.checked = rec.status === val;
     l.append(c, document.createTextNode(text)); return {l, c};
   };
-  const reg = mk(`regolare`, `Regolare`, `g`), irr = mk(`irregolare`, `Irregolare`, `r`);
-  const setSt = () => { rec.status = reg.c.checked ? `regolare` : (irr.c.checked ? `irregolare` : ``); };
+  const reg = mk(`si`, `Sì`, `g`), irr = mk(`no`, `No`, `r`);
+  const setSt = () => { rec.status = reg.c.checked ? `si` : (irr.c.checked ? `no` : ``); };
   reg.c.addEventListener(`change`, () => { if(reg.c.checked) irr.c.checked = false; setSt(); onChange(); });
   irr.c.addEventListener(`change`, () => { if(irr.c.checked) reg.c.checked = false; setSt(); onChange(); });
-  const stl = document.createElement(`label`); stl.className = `f`; stl.textContent = `Stato`;
-  const stw = document.createElement(`div`); stw.className = `stwrap`; stw.append(reg.l, irr.l);
-  root.append(city.wrap, row, note, name.wrap, vat.wrap, stl, stw, when.wrap);
+  const stw = document.createElement(`div`); stw.className = `stwrap`; stw.style.marginTop = `14px`; stw.setAttribute(`role`, `group`); stw.setAttribute(`aria-label`, `Esito`); stw.append(reg.l, irr.l);
+  root.append(city.wrap, row, note, name.wrap, vat.wrap, stw, when.wrap);
   if(refs){
     refs.city = city.i; refs.street = street.i; refs.civic = civic.i; refs.upd = upd;
     refs.commit = () => {
@@ -315,7 +315,7 @@ let streetMode = null;
 
 function matchTokens(g, q){
   const hay = norm([g.city, g.street, g.civic].concat(g.items.map(i => i.name + ` ` + i.vat)).join(` `));
-  return q.every(t => (t === `regolare` || t === `irregolare`) ? g.items.some(i => i.status === t) : hay.includes(t));
+  return q.every(t => hay.includes(t));
 }
 function stSpan(cls, text){ const s = document.createElement(`span`); s.className = cls; s.textContent = text; return s; }
 
@@ -329,11 +329,11 @@ function placeCard(g){
   [...new Set(g.items.map(i => [i.name, i.vat && `P.IVA ${i.vat}`].filter(Boolean).join(` · `)).filter(Boolean))].forEach(t => {
     const w = document.createElement(`div`); w.className = `when`; w.textContent = t; box.appendChild(w);
   });
-  const nr = g.items.filter(i => i.status === `regolare`).length, ni = g.items.filter(i => i.status === `irregolare`).length;
+  const nr = g.items.filter(i => i.status === `si`).length, ni = g.items.filter(i => i.status === `no`).length;
   if(nr || ni){
     const s = document.createElement(`div`); s.className = `stsum`;
-    if(nr) s.appendChild(stSpan(`st-g`, `Regolare: ${nr}`));
-    if(ni) s.appendChild(stSpan(`st-r`, `Irregolare: ${ni}`));
+    if(nr) s.appendChild(stSpan(`st-g`, `Sì: ${nr}`));
+    if(ni) s.appendChild(stSpan(`st-r`, `No: ${ni}`));
     box.appendChild(s);
   }
   const w = document.createElement(`div`); w.className = `when`; w.style.marginTop = `6px`; w.textContent = `Ultima volta: ${fmtDate(last.ts)} (${rc.t})`; box.appendChild(w);
@@ -341,7 +341,7 @@ function placeCard(g){
   const ul = document.createElement(`ul`); ul.className = `dates`; ul.hidden = true;
   g.items.slice().reverse().forEach(i => {
     const li = document.createElement(`li`); li.appendChild(document.createTextNode(`${fmtDate(i.ts)}, ${fmtTime(i.ts)}`));
-    if(i.status) li.append(` · `, stSpan(i.status === `regolare` ? `st-g` : `st-r`, i.status === `regolare` ? `Regolare` : `Irregolare`));
+    if(i.status) li.append(` · `, stSpan(i.status === `si` ? `st-g` : `st-r`, i.status === `si` ? `Sì` : `No`));
     ul.appendChild(li);
   });
   t.addEventListener(`click`, () => { ul.hidden = !ul.hidden; t.textContent = ul.hidden ? `Mostra le date` : `Nascondi le date`; });
