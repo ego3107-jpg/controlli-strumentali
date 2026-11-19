@@ -1,5 +1,6 @@
-const CACHE = 'dove-sono-v7';
-const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const CACHE = 'dove-sono-v8';
+const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
+               './condivisa.html', './condivisa.webmanifest', './condivisa-config.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -21,10 +22,24 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Prima la rete (così gli aggiornamenti compaiono subito), la copia salvata solo se sei offline.
 self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+
+  // Librerie Firebase (indirizzi con versione fissa): copia salvata per usare l'app anche senza rete
+  if (url.hostname === 'www.gstatic.com') {
+    e.respondWith(
+      caches.match(e.request).then(hit => hit || fetch(e.request).then(r => {
+        if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+        return r;
+      }))
+    );
+    return;
+  }
+
+  if (url.origin !== location.origin) return;
+
+  // Pagine dell'app: prima la rete (aggiornamenti subito), la copia salvata solo se sei offline
   e.respondWith(
     fetch(e.request, {cache: 'no-cache'})
       .then(r => {
